@@ -7,17 +7,17 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-import wandb
 import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
+import wandb
 from data import PADDataset
 from metric import compute_pad_metrics
 from model import get_model
-from schedulers import cosine_warmup_scheduler
+from schedulers import get_scheduler
 from transforms import get_transforms
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ def _unwrap(module):
 
 
 # ---------------------------------------------------------------------------
-# Optimizer & Scheduler Selection
+# Optimizer Selection
 # ---------------------------------------------------------------------------
 
 
@@ -66,30 +66,8 @@ def get_optimizer(opt_name: str, model: setup_ddp, opt_cfg: dict):
         return torch.optim.Adam(
             model.parameters(), lr=opt_cfg["lr"], weight_decay=opt_cfg["weight_decay"]
         )
-    
+
     raise ValueError(f"Unknown optimizer name: {opt_name}")
-
-
-
-def get_scheduler(
-    sched_name: str,
-    optimizer: torch.optim.Optimizer,
-    iters: int,
-    epochs: int,
-    sched_cfg: dict,
-):
-    total_iters = iters * epochs
-    warmup_iters = sched_cfg["warmup_epochs"] * iters
-    if sched_name == "cosine":
-        return cosine_warmup_scheduler(
-            optimizer=optimizer,
-            warmup_iters=warmup_iters,
-            total_iters=total_iters,
-            min_lr=sched_cfg["min_lr"]
-        )
-    
-    raise ValueError(f"Unknown scheduler name: {sched_name}")
-
 
 
 # ---------------------------------------------------------------------------
@@ -398,9 +376,9 @@ def main(cfg: dict, no_wandb: bool = False, checkpoint: str = None) -> None:
     scheduler = get_scheduler(
         sched_name=sched_cfg["sched_name"],
         optimizer=optimizer,
-        iters = len(train_loader),
+        iters=len(train_loader),
         epochs=train_cfg["epochs"],
-        sched_cfg=sched_cfg
+        sched_cfg=sched_cfg,
     )
 
     scaler = torch.amp.GradScaler("cuda")
