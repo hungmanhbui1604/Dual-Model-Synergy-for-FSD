@@ -56,30 +56,7 @@ def collect_probs(
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="PAD Evaluation")
-    parser.add_argument(
-        "--config",
-        required=True,
-        help="Path to the PAD YAML config",
-    )
-    parser.add_argument(
-        "--split-path",
-        required=True,
-        help="Path to the PAD split JSON file",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default="results/",
-        help="Directory for metrics JSON and plot PNGs",
-    )
-    parser.add_argument(
-        "--checkpoint-path",
-        required=True,
-        help="Path to the checkpoint",
-    )
-    args = parser.parse_args()
-
+def main(args: argparse.Namespace) -> None:
     cfg = load_config(args.config)
     model_cfg = cfg["model"]
     train_cfg = cfg["training"]
@@ -155,4 +132,26 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="PAD Evaluation")
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the PAD YAML config",
+    )
+    parser.add_argument(
+        "--split-path",
+        required=True,
+        help="Path to the PAD split JSON file",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="results/",
+        help="Directory for metrics JSON and plot PNGs",
+    )
+    parser.add_argument(
+        "--checkpoint-path",
+        required=True,
+        help="Path to the checkpoint",
+    )
+    args = parser.parse_args()
+    main(args)
