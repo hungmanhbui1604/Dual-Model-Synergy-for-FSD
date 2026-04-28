@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from data import PADDataset
-from metric import compute_pad_metrics
-from model import get_model
+from metrics import compute_pad_metrics
+from models import get_model
 from transforms import get_transforms
 
 # ---------------------------------------------------------------------------
@@ -109,20 +109,22 @@ def main(args: argparse.Namespace) -> None:
     print("=" * 50)
     print(f"Split path: {args.split_path}")
     print("-" * 50)
-    print(f"Accuracy : {metrics['accuracy']:.4f}")
-    print(f"ACE      : {metrics['ace']:.4f}")
-    print(f"APCER    : {metrics['apcer']:.4f}")
-    print(f"BPCER    : {metrics['bpcer']:.4f}")
+    print(f"Threshold : {metrics['threshold']:.4f}")
+    print(f"Accuracy  : {metrics['accuracy']:.2%}")
+    print(f"ACE       : {metrics['ace']:.2%}")
+    print(f"APCER     : {metrics['apcer']:.2%}")
+    print(f"BPCER     : {metrics['bpcer']:.2%}")
     print("-" * 50)
     print("=" * 50)
 
     # ── Save JSON ────────────────────────────────────────────────────────
     results = {
         "split_path": args.split_path,
-        "Accuracy": metrics["accuracy"],
-        "ACE": metrics["ace"],
-        "APCER": metrics["apcer"],
-        "BPCER": metrics["bpcer"],
+        "threshold": metrics["threshold"],
+        "accuracy": metrics["accuracy"],
+        "ace": metrics["ace"],
+        "apcer": metrics["apcer"],
+        "bpcer": metrics["bpcer"],
     }
 
     json_path = os.path.join(args.output_dir, "pad_metrics.json")

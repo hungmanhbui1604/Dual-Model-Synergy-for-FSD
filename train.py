@@ -15,8 +15,8 @@ from tqdm import tqdm
 
 import wandb
 from data import PADDataset
-from metric import compute_pad_metrics
-from model import get_model
+from metrics import compute_pad_metrics
+from models import get_model
 from schedulers import get_scheduler
 from transforms import get_transforms
 
@@ -61,10 +61,10 @@ def _unwrap(module):
 # ---------------------------------------------------------------------------
 
 
-def get_optimizer(opt_name: str, model: setup_ddp, opt_cfg: dict):
+def get_optimizer(opt_name: str, parameters: list, opt_cfg: dict):
     if opt_name == "adam":
         return torch.optim.Adam(
-            model.parameters(), lr=opt_cfg["lr"], weight_decay=opt_cfg["weight_decay"]
+            parameters, lr=opt_cfg["lr"], weight_decay=opt_cfg["weight_decay"]
         )
 
     raise ValueError(f"Unknown optimizer name: {opt_name}")
@@ -117,11 +117,8 @@ def evaluate(
     metrics = compute_pad_metrics(all_labels, all_probs)
 
     return {
-        "val/loss": avg_loss,
-        "val/accuracy": metrics["accuracy"],
-        "val/ace": metrics["ace"],
-        "val/apcer": metrics["apcer"],
-        "val/bpcer": metrics["bpcer"],
+        "loss": avg_loss,
+        **metrics,
     }
 
 
@@ -198,17 +195,17 @@ def save_checkpoint(
         tqdm.write("  [wandb] checkpoint artifact logged")
 
 
-def save_best(ckpt_dir: str, best_name: str, epoch: int, model: DDP, ace: int) -> None:
+def save_best(ckpt_dir: str, best_name: str, epoch: int, model: DDP, ace: float) -> None:
     path = os.path.join(ckpt_dir, best_name)
     torch.save(
         {
             "epoch": epoch,
             "model": _unwrap(model).state_dict(),
-            "ace": int,
+            "ace": ace,
         },
         path,
     )
-    tqdm.write(f"  [best model] ACE={ace:.2f} saved → {path}")
+    tqdm.write(f"  [best model] ACE={ace:.2%} saved → {path}")
 
     if wandb.run is not None:
         artifact = wandb.Artifact(
@@ -371,7 +368,7 @@ def main(cfg: dict, no_wandb: bool = False, checkpoint: str = None) -> None:
         print(f"[model] {model_cfg['model_name']}  ({n_params:.2f}M params)")
 
     # ── Optimizer, Scheduler, Scaler ──────────────────────────────────────
-    optimizer = get_optimizer(opt_cfg["opt_name"], model, opt_cfg)
+    optimizer = get_optimizer(opt_cfg["opt_name"], model.parameters(), opt_cfg)
 
     scheduler = get_scheduler(
         sched_name=sched_cfg["sched_name"],
@@ -428,37 +425,43 @@ def main(cfg: dict, no_wandb: bool = False, checkpoint: str = None) -> None:
 
             epoch_pbar.set_postfix(
                 loss=f"{avg_loss:.4f}",
-                ace=f"{metrics['val/ace']:.2f}",
+                ace=f"{metrics['ace']:.2%}",
             )
             tqdm.write(
                 f"Epoch {epoch:03d} | "
                 f"loss: {avg_loss:.4f} | "
-                f"val acc: {metrics['val/accuracy']:.2f} | "
-                f"val ACE: {metrics['val/ace']:.2f} "
-                f"(APCER={metrics['val/apcer']:.2f}, BPCER={metrics['val/bpcer']:.2f})"
+                f"val acc: {metrics['accuracy']:.2%} | "
+                f"val ACE: {metrics['ace']:.2%} "
+                f"(APCER={metrics['apcer']:.2%}, BPCER={metrics['bpcer']:.2%}) "
+                f"(thr={metrics['threshold']:.4f})"
             )
 
             if wandb.run is not None:
                 wandb.log(
                     {
-                        "train/loss_epoch": avg_loss,
+                        "train/loss": avg_loss,
                         "epoch": epoch,
-                        **metrics,
+                        "val/loss": metrics["loss"],
+                        "val/threshold": metrics["threshold"],
+                        "val/accuracy": metrics["accuracy"],
+                        "val/ace": metrics["ace"],
+                        "val/apcer": metrics["apcer"],
+                        "val/bpcer": metrics["bpcer"],
                     }
                 )
             else:
                 history["epoch"].append(epoch)
                 history["train_loss"].append(avg_loss)
-                history["val_ace"].append(metrics["val/ace"])
+                history["val_ace"].append(metrics["ace"])
 
-            if metrics["val/ace"] < best_ace:
-                best_ace = metrics["val/ace"]
+            if metrics["ace"] < best_ace:
+                best_ace = metrics["ace"]
                 save_best(
                     output_cfg["checkpoint_dir"],
                     output_cfg["best_model_name"],
                     epoch,
                     model,
-                    metrics["val/ace"],
+                    metrics["ace"],
                 )
 
             if epoch % train_cfg["checkpoint_interval"] == 0:
@@ -472,14 +475,14 @@ def main(cfg: dict, no_wandb: bool = False, checkpoint: str = None) -> None:
                     optimizer,
                     scheduler,
                     scaler,
-                    metrics["val/ace"],
+                    metrics["ace"],
                 )
 
         dist.barrier()
 
     if is_main():
         print("=" * 60)
-        print(f"Training complete. Best val ACE: {best_ace:.4f}")
+        print(f"Training complete. Best val ACE: {best_ace:.2%}")
         print("=" * 60)
 
         if wandb.run is not None:

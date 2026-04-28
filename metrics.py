@@ -21,8 +21,8 @@ def compute_pad_metrics(labels: np.ndarray, probabilities: np.ndarray) -> dict:
 
     return {
         "threshold": threshold,
-        "accuracy": accuracy * 100.0,
-        "ace": ace[idx] * 100.0,
-        "apcer": apcer[idx] * 100.0,
-        "bpcer": bpcer[idx] * 100.0,
+        "accuracy": accuracy,
+        "ace": ace[idx],
+        "apcer": apcer[idx],
+        "bpcer": bpcer[idx],
     }
